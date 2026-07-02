@@ -1,0 +1,5 @@
+unstable_features = true
+use_small_heuristics = "Off"
+struct_lit_single_line = false
+where_single_line = false
+max_width = 1111
