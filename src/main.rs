@@ -1,9 +1,13 @@
-use ndarray::{self, Array1, Array2};
-
+use ndarray::{self, Array1};
 mod neural;
 use neural::{Activation, Layer};
+mod renderer;
 
 fn main() {
+    renderer::init();
+}
+
+fn run_network() {
     let dataset = neural::get_data(1000000000);
 
     let mut network: Vec<Layer> = Vec::new();
