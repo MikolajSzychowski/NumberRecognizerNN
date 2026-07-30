@@ -4,7 +4,18 @@ use neural::{Activation, Layer};
 mod renderer;
 
 fn main() {
-    renderer::init();
+    let grid = renderer::new_shared_grid();
+    let grid_for_update = grid.clone();
+
+    renderer::init(grid, move || {});
+}
+
+fn start() {
+    println!("start")
+}
+
+fn update() {
+    println!("update")
 }
 
 fn run_network() {
