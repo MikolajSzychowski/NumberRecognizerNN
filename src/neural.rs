@@ -5,6 +5,43 @@ use std::fs::File;
 use std::io::Write;
 use std::io::{BufRead, BufReader};
 
+pub struct NeuralData {
+    pub network: Vec<Layer>,
+}
+
+impl NeuralData {
+    pub fn init(import_network: Vec<Layer>) -> Self {
+        NeuralData {
+            network: import_network,
+        }
+    }
+
+    pub fn get_network(&self) -> &Vec<Layer> {
+        &self.network
+    }
+
+    pub fn calculate_network(&mut self, pixels: &Array1<f32>) -> i32 {
+        let mut current_signals = pixels.clone();
+
+        for layer in &mut self.network {
+            current_signals = layer.forward(&current_signals);
+        }
+
+        let mut max_idx = 0;
+        let mut max_val = current_signals[0];
+        for (idx, &val) in current_signals.iter().enumerate() {
+            if val > max_val {
+                max_val = val;
+                max_idx = idx;
+            }
+        }
+        println!("Network predicted: {}", max_idx);
+        max_idx as i32
+    }
+}
+
+// WAŻNE: Usuń całkowicie z neural.rs starą, wolnostojącą funkcję `pub fn calculate_network(pixels: &Array1<f32>) -> i32 { ... }`
+
 pub struct Layer {
     pub biases: Array1<f32>,
     pub neurons: Array1<f32>,

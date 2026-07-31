@@ -1,3 +1,4 @@
+use ndarray::Array1;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -9,13 +10,16 @@ use winit::{
     window::{Window, WindowId},
 };
 
-pub fn init(grid: SharedGrid, update: impl FnMut() + 'static) {
+use crate::neural::{self, NeuralData};
+
+pub fn init(grid: SharedGrid, neural_data: NeuralData, update: impl FnMut() + 'static) {
     env_logger::init();
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Wait);
     let mut app = App {
         update: Some(Box::new(update)),
         grid: Some(grid),
+        neural_data: Some(neural_data),
         ..Default::default()
     };
     event_loop.run_app(&mut app).unwrap();
@@ -122,6 +126,7 @@ struct App {
     grid: Option<SharedGrid>,
     mouse_pos: (f32, f32),
     mouse_down: bool,
+    neural_data: Option<NeuralData>,
 }
 
 #[repr(C)]
@@ -387,8 +392,11 @@ impl App {
         let col = ((mx - GRID_ORIGIN.0) / CELL_PX).floor() as i32;
         let row = ((my - GRID_ORIGIN.1) / CELL_PX).floor() as i32;
         if row >= 0 && row < GRID_SIZE as i32 && col >= 0 && col < GRID_SIZE as i32 {
-            if let Some(grid) = &self.grid {
+            if let (Some(grid), Some(neural_data)) = (&self.grid, &mut self.neural_data) {
                 grid.borrow_mut()[row as usize * GRID_SIZE + col as usize] = 1.0;
+
+                let scaled_pixels = Array1::from(grid.borrow().clone()) * 255.0;
+                neural_data.calculate_network(&scaled_pixels);
             }
         }
     }

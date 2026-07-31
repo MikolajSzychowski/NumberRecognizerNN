@@ -1,13 +1,15 @@
 use ndarray::{self, Array1};
 mod neural;
 use neural::{Activation, Layer};
+
+use crate::neural::import_network;
 mod renderer;
 
 fn main() {
     let grid = renderer::new_shared_grid();
     let grid_for_update = grid.clone();
 
-    renderer::init(grid, move || {});
+    renderer::init(grid, neural::NeuralData::init(import_network("network.txt")), move || {});
 }
 
 fn start() {
