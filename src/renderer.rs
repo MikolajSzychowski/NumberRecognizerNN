@@ -12,6 +12,9 @@ use winit::{
 
 use crate::neural::{self, NeuralData};
 
+const SCREEN_HEIGHT: usize = 770;
+const SCREEN_WIDTH: usize = 1500;
+
 pub fn init(grid: SharedGrid, neural_data: NeuralData, update: impl FnMut() + 'static) {
     env_logger::init();
     let event_loop = EventLoop::new().unwrap();
@@ -26,10 +29,10 @@ pub fn init(grid: SharedGrid, neural_data: NeuralData, update: impl FnMut() + 's
 }
 
 pub const GRID_SIZE: usize = 28;
-pub const CELL_PX: f32 = 40.0; // on-screen size per cell
+pub const CELL_PX: f32 = 40.0;
 pub const GRID_ORIGIN: (f32, f32) = (20.0, 20.0);
 
-pub type SharedGrid = Rc<RefCell<Vec<f32>>>; // len = 28*28, values 0.0..=1.0 grayscale
+pub type SharedGrid = Rc<RefCell<Vec<f32>>>;
 
 pub fn new_shared_grid() -> SharedGrid {
     Rc::new(RefCell::new(vec![0.0; GRID_SIZE * GRID_SIZE]))
@@ -142,7 +145,7 @@ impl ApplicationHandler for App {
             return;
         }
 
-        let window_attrs = Window::default_attributes().with_title("Number Recognizer").with_inner_size(winit::dpi::LogicalSize::new(1600.0, 1000.0));
+        let window_attrs = Window::default_attributes().with_title("Number Recognizer").with_inner_size(winit::dpi::LogicalSize::new(SCREEN_WIDTH as u32, SCREEN_HEIGHT as u32));
         let window = Arc::new(event_loop.create_window(window_attrs).unwrap());
         self.window = Some(window.clone());
 
@@ -163,8 +166,8 @@ impl ApplicationHandler for App {
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: caps.formats[0],
-            width: 1600,
-            height: 1000,
+            width: SCREEN_WIDTH as u32,
+            height: SCREEN_HEIGHT as u32,
             present_mode: wgpu::PresentMode::Fifo, // V-Sync
             alpha_mode: caps.alpha_modes[0],
             view_formats: vec![],
@@ -358,7 +361,12 @@ impl ApplicationHandler for App {
                                 view: &view,
                                 resolve_target: None,
                                 ops: wgpu::Operations {
-                                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                                        r: 0.1,
+                                        g: 0.1,
+                                        b: 0.1,
+                                        a: 1.0,
+                                    }),
                                     store: wgpu::StoreOp::Store,
                                 },
                                 depth_slice: None,
