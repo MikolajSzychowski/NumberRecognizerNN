@@ -9,7 +9,7 @@ fn main() {
     let grid = renderer::new_shared_grid();
     let grid_for_update = grid.clone();
 
-    renderer::init(grid, neural::NeuralData::init(import_network("network1.txt")), move || {});
+    renderer::init(grid, neural::NeuralData::init(import_network("network.txt")), move || {});
 }
 
 fn start() {

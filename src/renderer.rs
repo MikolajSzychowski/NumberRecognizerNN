@@ -1,8 +1,10 @@
 use ndarray::Array1;
+use ndarray_rand::rand_distr::num_traits::Pow;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, wgc::resource::TextureErrorDimension::Y};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -324,7 +326,27 @@ impl ApplicationHandler for App {
                     }
                 }
             }
+            WindowEvent::KeyboardInput {
+                event,
+                ..
+            } => {
+                if event.state == winit::event::ElementState::Pressed {
+                    match event.physical_key {
+                        PhysicalKey::Code(KeyCode::Escape) => {
+                            event_loop.exit();
+                        }
 
+                        PhysicalKey::Code(KeyCode::KeyR) => {
+                            if let Some(grid) = &self.grid {
+                                for cell in grid.borrow_mut().iter_mut() {
+                                    *cell = 0.0;
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
             WindowEvent::RedrawRequested => {
                 if let Some(update) = &mut self.update {
                     update();
@@ -394,18 +416,30 @@ impl ApplicationHandler for App {
     }
 }
 
+pub fn distance(x1: f32, x2: f32, y1: f32, y2: f32) -> f32 {
+    f32::sqrt((x1 - x2).pow(2) + (y1 - y2).pow(2))
+}
+
 impl App {
     fn paint_at_mouse(&mut self) {
         let (mx, my) = self.mouse_pos;
         let col = ((mx - GRID_ORIGIN.0) / CELL_PX).floor() as i32;
         let row = ((my - GRID_ORIGIN.1) / CELL_PX).floor() as i32;
-        if row >= 0 && row < GRID_SIZE as i32 && col >= 0 && col < GRID_SIZE as i32 {
-            if let (Some(grid), Some(neural_data)) = (&self.grid, &mut self.neural_data) {
-                grid.borrow_mut()[row as usize * GRID_SIZE + col as usize] = 1.0;
 
-                let scaled_pixels = Array1::from(grid.borrow().clone()) * 255.0;
-                neural_data.calculate_network(&scaled_pixels);
+        for x in -2..=2 {
+            for y in -2..=2 {
+                if row + x >= 0 && row + x < GRID_SIZE as i32 && col + y >= 0 && col + y < GRID_SIZE as i32 {
+                    if let Some(grid) = &self.grid {
+                        let color = grid.borrow_mut()[(row + x) as usize * GRID_SIZE + (col + y) as usize];
+                        grid.borrow_mut()[(row + x) as usize * GRID_SIZE + (col + y) as usize] = (1.0 - (distance(row as f32, (row + x) as f32, col as f32, (col + y) as f32) * 0.55).clamp(0.0, 1.0)).max(color);
+                    }
+                }
             }
+        }
+
+        if let (Some(grid), Some(neural_data)) = (&self.grid, &mut self.neural_data) {
+            let scaled_pixels = Array1::from(grid.borrow().clone()) * 255.0;
+            neural_data.calculate_network(&scaled_pixels);
         }
     }
 }
