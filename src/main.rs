@@ -2,12 +2,11 @@ use ndarray::{self, Array1};
 mod neural;
 use neural::{Activation, Layer};
 
-use crate::neural::import_network;
+use crate::neural::{import_network, print_case};
 mod renderer;
 
 fn main() {
     let grid = renderer::new_shared_grid();
-    let grid_for_update = grid.clone();
 
     renderer::init(grid, neural::NeuralData::init(import_network("network.txt")), move || {});
 }
@@ -29,7 +28,7 @@ fn run_network() {
     network.push(Layer::new(64, 64, Activation::ReLU));
     network.push(Layer::new(10, 64, Activation::ReLU));
 
-    network = neural::import_network("network.txt");
+    network = neural::import_network("network1.txt");
 
     let mut total = 0.0;
     let mut wrong = 0.0;

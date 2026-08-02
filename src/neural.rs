@@ -40,8 +40,6 @@ impl NeuralData {
     }
 }
 
-// WAŻNE: Usuń całkowicie z neural.rs starą, wolnostojącą funkcję `pub fn calculate_network(pixels: &Array1<f32>) -> i32 { ... }`
-
 pub struct Layer {
     pub biases: Array1<f32>,
     pub neurons: Array1<f32>,
