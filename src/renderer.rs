@@ -40,12 +40,12 @@ pub fn new_shared_grid() -> SharedGrid {
     Rc::new(RefCell::new(vec![0.0; GRID_SIZE * GRID_SIZE]))
 }
 
-fn build_grid_vertices(grid: &[f32]) -> Vec<Vertex> {
-    let mut verts = Vec::with_capacity(GRID_SIZE * GRID_SIZE * 6);
+fn build_grid_vertices(grid: &[f32], outputs: &[f32]) -> Vec<Vertex> {
+    let mut verts = Vec::with_capacity((GRID_SIZE * GRID_SIZE + 20) * 6);
     for row in 0..GRID_SIZE {
         for col in 0..GRID_SIZE {
             let value = grid[row * GRID_SIZE + col];
-            let color = [value, value, value]; // grayscale; swap for a colormap if you like
+            let color = [value, value, value];
 
             let x0 = GRID_ORIGIN.0 + col as f32 * CELL_PX;
             let y0 = GRID_ORIGIN.1 + row as f32 * CELL_PX;
@@ -76,6 +76,72 @@ fn build_grid_vertices(grid: &[f32]) -> Vec<Vertex> {
             verts.push(br);
             verts.push(bl);
         }
+    }
+    let bar_x = 1180.0;
+    let max_bar_width = 280.0;
+    let bar_height = 45.0;
+    let bar_spacing = 68.0;
+    let start_y = 40.0;
+
+    for i in 0..10 {
+        let val = outputs.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0);
+        let y0 = start_y + (i as f32) * bar_spacing;
+        let y1 = y0 + bar_height;
+
+        let bg_color = [0.15, 0.15, 0.15];
+        let bg_x1 = bar_x + max_bar_width;
+        let bg_tl = Vertex {
+            position: [bar_x, y0],
+            color: bg_color,
+        };
+        let bg_tr = Vertex {
+            position: [bg_x1, y0],
+            color: bg_color,
+        };
+        let bg_br = Vertex {
+            position: [bg_x1, y1],
+            color: bg_color,
+        };
+        let bg_bl = Vertex {
+            position: [bar_x, y1],
+            color: bg_color,
+        };
+
+        verts.push(bg_tl);
+        verts.push(bg_tr);
+        verts.push(bg_br);
+        verts.push(bg_tl);
+        verts.push(bg_br);
+        verts.push(bg_bl);
+
+        let active_width = max_bar_width * val;
+        let x1 = bar_x + active_width;
+
+        let color = [1.0, 1.0, 1.0];
+
+        let tl = Vertex {
+            position: [bar_x, y0],
+            color,
+        };
+        let tr = Vertex {
+            position: [x1, y0],
+            color,
+        };
+        let br = Vertex {
+            position: [x1, y1],
+            color,
+        };
+        let bl = Vertex {
+            position: [bar_x, y1],
+            color,
+        };
+
+        verts.push(tl);
+        verts.push(tr);
+        verts.push(br);
+        verts.push(tl);
+        verts.push(br);
+        verts.push(bl);
     }
     verts
 }
@@ -130,6 +196,7 @@ struct App {
     vertex_count: u32,
     grid: Option<SharedGrid>,
     mouse_pos: (f32, f32),
+    mouse_last: (f32, f32),
     mouse_down: bool,
     neural_data: Option<NeuralData>,
 }
@@ -178,7 +245,8 @@ impl ApplicationHandler for App {
         };
         surface.configure(&device, &config);
 
-        let initial_verts = build_grid_vertices(&self.grid.as_ref().unwrap().borrow());
+        let initial_verts = build_grid_vertices(&self.grid.as_ref().unwrap().borrow(), vec![0.0; 10].as_slice());
+        self.vertex_count = initial_verts.len() as u32;
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Grid Vertex Buffer"),
             contents: bytemuck::cast_slice(&initial_verts),
@@ -271,6 +339,10 @@ impl ApplicationHandler for App {
             cache: None,
         });
 
+        if let (Some(grid), Some(neural_data)) = (&self.grid, &mut self.neural_data) {
+            neural_data.calculate_network(&Array1::from(grid.borrow().clone()));
+        }
+
         self.surface = Some(surface);
         self.device = Some(device);
         self.queue = Some(queue);
@@ -309,6 +381,7 @@ impl ApplicationHandler for App {
                 position,
                 ..
             } => {
+                self.mouse_last = self.mouse_pos;
                 self.mouse_pos = (position.x as f32, position.y as f32);
                 if self.mouse_down {
                     self.paint_at_mouse();
@@ -342,6 +415,9 @@ impl ApplicationHandler for App {
                                     *cell = 0.0;
                                 }
                             }
+                            if let (Some(grid), Some(neural_data)) = (&self.grid, &mut self.neural_data) {
+                                neural_data.calculate_network(&Array1::from(grid.borrow().clone()));
+                            }
                         }
                         _ => {}
                     }
@@ -353,7 +429,9 @@ impl ApplicationHandler for App {
                 }
 
                 if let (Some(queue), Some(grid), Some(vbuffer)) = (&self.queue, &self.grid, &self.vertex_buffer) {
-                    let verts = build_grid_vertices(&grid.borrow());
+                    let outputs = self.neural_data.as_ref().map(|nd| nd.last_output.as_slice()).unwrap_or(&[0.0; 10]);
+                    let verts = build_grid_vertices(&grid.borrow(), outputs);
+                    self.vertex_count = verts.len() as u32;
                     queue.write_buffer(vbuffer, 0, bytemuck::cast_slice(&verts));
                 }
 
@@ -426,20 +504,52 @@ impl App {
         let col = ((mx - GRID_ORIGIN.0) / CELL_PX).floor() as i32;
         let row = ((my - GRID_ORIGIN.1) / CELL_PX).floor() as i32;
 
-        for x in -2..=2 {
-            for y in -2..=2 {
-                if row + x >= 0 && row + x < GRID_SIZE as i32 && col + y >= 0 && col + y < GRID_SIZE as i32 {
-                    if let Some(grid) = &self.grid {
-                        let color = grid.borrow_mut()[(row + x) as usize * GRID_SIZE + (col + y) as usize];
-                        grid.borrow_mut()[(row + x) as usize * GRID_SIZE + (col + y) as usize] = (1.0 - (distance(row as f32, (row + x) as f32, col as f32, (col + y) as f32) * 0.55).clamp(0.0, 1.0)).max(color);
+        let (lastX, lastY) = self.mouse_last;
+        let lastCol = ((lastX - GRID_ORIGIN.0) / CELL_PX).floor() as i32;
+        let lastRow = ((lastY - GRID_ORIGIN.1) / CELL_PX).floor() as i32;
+
+        let d_col = col - lastCol;
+        let d_row = row - lastRow;
+
+        let steps = d_col.abs().max(d_row.abs());
+
+        if let Some(grid_ref) = &self.grid {
+            let mut grid = grid_ref.borrow_mut();
+
+            for i in 0..=steps {
+                let current_col = if steps == 0 {
+                    col
+                } else {
+                    lastCol + (d_col * i) / steps
+                };
+                let current_row = if steps == 0 {
+                    row
+                } else {
+                    lastRow + (d_row * i) / steps
+                };
+
+                for x in -2..=2 {
+                    for y in -2..=2 {
+                        let target_row = current_row + x;
+                        let target_col = current_col + y;
+
+                        if target_row >= 0 && target_row < GRID_SIZE as i32 && target_col >= 0 && target_col < GRID_SIZE as i32 {
+                            let idx = (target_row as usize) * GRID_SIZE + (target_col as usize);
+                            let color = grid[idx];
+
+                            let dist = distance(current_row as f32, target_row as f32, current_col as f32, target_col as f32);
+
+                            let brush_val = (1.0 - (dist * 0.5)).clamp(0.0, 1.0);
+
+                            grid[idx] = brush_val.max(color);
+                        }
                     }
                 }
             }
         }
 
         if let (Some(grid), Some(neural_data)) = (&self.grid, &mut self.neural_data) {
-            let scaled_pixels = Array1::from(grid.borrow().clone()) * 255.0;
-            neural_data.calculate_network(&scaled_pixels);
+            neural_data.calculate_network(&Array1::from(grid.borrow().clone()));
         }
     }
 }

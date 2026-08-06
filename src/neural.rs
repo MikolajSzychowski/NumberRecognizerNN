@@ -7,12 +7,14 @@ use std::io::{BufRead, BufReader};
 
 pub struct NeuralData {
     pub network: Vec<Layer>,
+    pub last_output: Vec<f32>,
 }
 
 impl NeuralData {
     pub fn init(import_network: Vec<Layer>) -> Self {
         NeuralData {
             network: import_network,
+            last_output: vec![0.0; 10],
         }
     }
 
@@ -36,6 +38,7 @@ impl NeuralData {
             }
         }
         println!("Network predicted: {}", max_idx);
+        self.last_output = current_signals.to_vec();
         max_idx as i32
     }
 }

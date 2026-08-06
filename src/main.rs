@@ -8,6 +8,8 @@ mod renderer;
 fn main() {
     let grid = renderer::new_shared_grid();
 
+    //run_network();
+
     renderer::init(grid, neural::NeuralData::init(import_network("network.txt")), move || {});
 }
 
